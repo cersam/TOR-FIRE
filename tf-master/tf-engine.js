@@ -1,16 +1,16 @@
 (function () {
   "use strict";
 
-  const slides = window.TF_SLIDES || [];
-  const app = document.getElementById("tf-app");
+  var slides = window.TF_SLIDES || [];
+  var app = document.getElementById("tf-app");
 
   if (!app || !slides.length) return;
 
-  let current = 0;
-  let isAnimating = false;
-  let scrollTimer = null;
-  let lastWheelTime = 0;
-  let touchStartY = null;
+  var current = 0;
+  var isAnimating = false;
+  var lastWheelTime = 0;
+  var scrollTimer = null;
+  var touchStartY = null;
 
   function clamp(n, min, max) {
     return Math.max(min, Math.min(max, n));
@@ -20,105 +20,132 @@
     return String(i).padStart(2, "0");
   }
 
+  function make(tag, className, text) {
+    var el = document.createElement(tag);
+    if (className) el.className = className;
+    if (typeof text === "string") el.textContent = text;
+    return el;
+  }
+
   function getMaxScroll() {
     return Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
   }
 
   function getScrollForIndex(index) {
-    const maxScroll = getMaxScroll();
-    const maxIndex = Math.max(1, slides.length - 1);
+    var maxScroll = getMaxScroll();
+    var maxIndex = Math.max(1, slides.length - 1);
     return (index / maxIndex) * maxScroll;
   }
 
   function getIndexFromScroll() {
-    const maxScroll = getMaxScroll();
-    const progress = clamp(window.scrollY / maxScroll, 0, 1);
+    var maxScroll = getMaxScroll();
+    var progress = clamp(window.scrollY / maxScroll, 0, 1);
     return Math.round(progress * (slides.length - 1));
   }
 
   function buildSlide(slide, index) {
-    const el = document.createElement("section");
-    el.className = "tf-slide";
-    el.dataset.index = String(index);
-    el.dataset.theme = slide.theme || "black";
+    var section = make("section", "tf-slide");
+    section.dataset.index = String(index);
+    section.dataset.theme = slide.theme || "black";
 
-    const headline = (slide.headline || [])
-      .map(function (line) {
-        return '<span class="tf-hline"><span class="tf-hin">' + line + "</span></span>";
-      })
-      .join("");
+    var content = make("div", "tf-slide-content");
 
-    el.innerHTML =
-      '<div class="tf-slide-content">' +
-        '<div class="tf-eyebrow">' + (slide.eyebrow || pad(index)) + "</div>" +
-        '<h1 class="tf-headline">' + headline + "</h1>" +
-        '<p class="tf-subcopy">' + (slide.sub || "") + "</p>" +
-      "</div>";
+    var eyebrow = make("div", "tf-eyebrow", slide.eyebrow || pad(index));
+    content.appendChild(eyebrow);
 
-    return el;
+    var h1 = make("h1", "tf-headline");
+
+    (slide.headline || []).forEach(function (line) {
+      var outer = make("span", "tf-hline");
+      var inner = make("span", "tf-hin", line);
+      outer.appendChild(inner);
+      h1.appendChild(outer);
+    });
+
+    content.appendChild(h1);
+
+    var sub = make("p", "tf-subcopy", slide.sub || "");
+    content.appendChild(sub);
+
+    section.appendChild(content);
+    return section;
   }
 
-  function buildMenu() {
-    return slides.map(function (slide, index) {
-      return (
-        '<button class="tf-menu-item" data-go="' + index + '">' +
-          '<span class="tf-menu-index">' + pad(index) + "</span>" +
-          '<span class="tf-menu-title">' + (slide.chapter || slide.id || pad(index)) + "</span>" +
-        "</button>"
-      );
-    }).join("");
-  }
+  function buildApp() {
+    app.innerHTML = "";
 
-  function render() {
-    app.innerHTML =
-      '<div class="tf-stage">' +
-        '<div class="tf-bg-grid"></div>' +
-        '<div class="tf-vignette"></div>' +
+    var stage = make("div", "tf-stage");
 
-        '<div class="tf-topbar">' +
-          '<div class="tf-logo">T<span class="tf-logo-dot">•</span>F</div>' +
-        "</div>" +
+    stage.appendChild(make("div", "tf-bg-grid"));
+    stage.appendChild(make("div", "tf-vignette"));
 
-        '<div class="tf-chapter-track">' +
-          '<div class="tf-track-line"></div>' +
-          '<div class="tf-track-fill"></div>' +
-          '<div class="tf-track-dot"></div>' +
-          '<div class="tf-track-label"></div>' +
-        "</div>" +
+    var topbar = make("div", "tf-topbar");
+    var logo = make("div", "tf-logo");
+    logo.innerHTML = 'T<span class="tf-logo-dot">•</span>F';
+    topbar.appendChild(logo);
+    stage.appendChild(topbar);
 
-        '<button class="tf-menu-btn" type="button" aria-label="Open menu">' +
-          "<span></span><span></span><span></span>" +
-        "</button>" +
+    var track = make("div", "tf-chapter-track");
+    track.appendChild(make("div", "tf-track-line"));
+    track.appendChild(make("div", "tf-track-fill"));
+    track.appendChild(make("div", "tf-track-dot"));
+    track.appendChild(make("div", "tf-track-label"));
+    stage.appendChild(track);
 
-        '<div class="tf-menu-overlay">' +
-          '<div class="tf-menu-list">' + buildMenu() + "</div>" +
-        "</div>" +
+    var menuButton = make("button", "tf-menu-btn");
+    menuButton.type = "button";
+    menuButton.setAttribute("aria-label", "Open menu");
+    menuButton.appendChild(make("span"));
+    menuButton.appendChild(make("span"));
+    menuButton.appendChild(make("span"));
+    stage.appendChild(menuButton);
 
-        '<div class="tf-arrows">' +
-          '<button class="tf-arrow tf-arrow-up" type="button" aria-label="Previous slide">' +
-            '<svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>' +
-          "</button>" +
-          '<button class="tf-arrow tf-arrow-down" type="button" aria-label="Next slide">' +
-            '<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>' +
-          "</button>" +
-        "</div>" +
-      "</div>";
+    var overlay = make("div", "tf-menu-overlay");
+    var list = make("div", "tf-menu-list");
 
-    const stage = app.querySelector(".tf-stage");
+    slides.forEach(function (slide, index) {
+      var item = make("button", "tf-menu-item");
+      item.type = "button";
+      item.dataset.go = String(index);
+
+      item.appendChild(make("span", "tf-menu-index", pad(index)));
+      item.appendChild(make("span", "tf-menu-title", slide.chapter || slide.id || pad(index)));
+
+      list.appendChild(item);
+    });
+
+    overlay.appendChild(list);
+    stage.appendChild(overlay);
+
+    var arrows = make("div", "tf-arrows");
+
+    var up = make("button", "tf-arrow tf-arrow-up", "↑");
+    up.type = "button";
+    up.setAttribute("aria-label", "Previous slide");
+
+    var down = make("button", "tf-arrow tf-arrow-down", "↓");
+    down.type = "button";
+    down.setAttribute("aria-label", "Next slide");
+
+    arrows.appendChild(up);
+    arrows.appendChild(down);
+    stage.appendChild(arrows);
 
     slides.forEach(function (slide, index) {
       stage.appendChild(buildSlide(slide, index));
     });
+
+    app.appendChild(stage);
 
     bindEvents();
     update(0, false);
   }
 
   function update(index, shouldScroll) {
-    const next = clamp(index, 0, slides.length - 1);
-    current = next;
+    current = clamp(index, 0, slides.length - 1);
 
-    const slideEls = app.querySelectorAll(".tf-slide");
+    var slideEls = app.querySelectorAll(".tf-slide");
+
     slideEls.forEach(function (el, i) {
       if (i === current) {
         el.classList.remove("is-active");
@@ -129,36 +156,38 @@
       }
     });
 
-    const progress = slides.length <= 1 ? 0 : (current / (slides.length - 1)) * 100;
+    var progress = slides.length <= 1 ? 0 : (current / (slides.length - 1)) * 100;
 
-    const fill = app.querySelector(".tf-track-fill");
-    const dot = app.querySelector(".tf-track-dot");
-    const label = app.querySelector(".tf-track-label");
+    var fill = app.querySelector(".tf-track-fill");
+    var dot = app.querySelector(".tf-track-dot");
+    var label = app.querySelector(".tf-track-label");
 
     if (fill) fill.style.width = progress + "%";
     if (dot) dot.style.left = progress + "%";
+
     if (label) {
       label.style.left = progress + "%";
       label.textContent = slides[current].chapter || slides[current].id || pad(current);
     }
 
-    const up = app.querySelector(".tf-arrow-up");
-    const down = app.querySelector(".tf-arrow-down");
+    var up = app.querySelector(".tf-arrow-up");
+    var down = app.querySelector(".tf-arrow-down");
 
     if (up) up.classList.toggle("is-disabled", current === 0);
     if (down) down.classList.toggle("is-disabled", current === slides.length - 1);
 
-    const menuItems = app.querySelectorAll(".tf-menu-item");
-    menuItems.forEach(function (item, i) {
+    app.querySelectorAll(".tf-menu-item").forEach(function (item, i) {
       item.classList.toggle("is-active", i === current);
     });
 
     if (shouldScroll) {
       isAnimating = true;
+
       window.scrollTo({
         top: getScrollForIndex(current),
         behavior: "smooth"
       });
+
       window.setTimeout(function () {
         isAnimating = false;
       }, 620);
@@ -178,29 +207,29 @@
   }
 
   function toggleMenu(force) {
-    const open = typeof force === "boolean" ? force : !app.classList.contains("tf-menu-open");
+    var open = typeof force === "boolean" ? force : !app.classList.contains("tf-menu-open");
     app.classList.toggle("tf-menu-open", open);
   }
 
   function bindEvents() {
-    const up = app.querySelector(".tf-arrow-up");
-    const down = app.querySelector(".tf-arrow-down");
-    const menuBtn = app.querySelector(".tf-menu-btn");
+    var up = app.querySelector(".tf-arrow-up");
+    var down = app.querySelector(".tf-arrow-down");
+    var menuButton = app.querySelector(".tf-menu-btn");
 
     if (up) up.addEventListener("click", prevSlide);
     if (down) down.addEventListener("click", nextSlide);
-    if (menuBtn) menuBtn.addEventListener("click", function () { toggleMenu(); });
+    if (menuButton) menuButton.addEventListener("click", function () { toggleMenu(); });
 
     app.querySelectorAll(".tf-menu-item").forEach(function (item) {
       item.addEventListener("click", function () {
-        const index = Number(this.dataset.go);
+        var index = Number(this.dataset.go);
         toggleMenu(false);
         goToSlide(index);
       });
     });
 
     window.addEventListener("keydown", function (e) {
-      const tag = document.activeElement && document.activeElement.tagName;
+      var tag = document.activeElement && document.activeElement.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
 
       if (e.key === "Escape") {
@@ -234,7 +263,8 @@
     window.addEventListener("wheel", function (e) {
       if (app.classList.contains("tf-menu-open")) return;
 
-      const now = Date.now();
+      var now = Date.now();
+
       if (now - lastWheelTime < 720) {
         e.preventDefault();
         return;
@@ -258,10 +288,11 @@
       if (touchStartY === null) return;
       if (!e.changedTouches || !e.changedTouches.length) return;
 
-      const dy = touchStartY - e.changedTouches[0].clientY;
+      var dy = touchStartY - e.changedTouches[0].clientY;
       touchStartY = null;
 
       if (Math.abs(dy) < 42) return;
+
       if (dy > 0) nextSlide();
       else prevSlide();
     }, { passive: true });
@@ -272,7 +303,8 @@
       clearTimeout(scrollTimer);
 
       scrollTimer = window.setTimeout(function () {
-        const index = getIndexFromScroll();
+        var index = getIndexFromScroll();
+
         if (index !== current) {
           update(index, false);
         }
@@ -292,5 +324,5 @@
     });
   }
 
-  render();
+  buildApp();
 })();
